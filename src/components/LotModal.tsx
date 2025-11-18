@@ -1,13 +1,14 @@
 import  { useState } from 'react';
 import { X, Save} from 'lucide-react';
+import type { TickerLot, LotFormData } from '../types';
 
 // ============================================
 // Modal Component
 // ============================================
 interface LotModalProps {
-  lot: any;
+  lot: TickerLot | null;
   onClose: () => void;
-  onSave: (lot: any) => void;
+  onSave: (lot: LotFormData) => void;
 }
 
 export default function LotModal({ lot, onClose, onSave }: LotModalProps) {

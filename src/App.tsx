@@ -21,9 +21,15 @@ import TickerDetailModal from './components/TickerDetailModal';
 import NewTickerModal from './components/NewTickerModal';
 import { Authenticator } from '@aws-amplify/ui-react';
 
+interface AuthenticatorUser {
+  signInDetails?: {
+    loginId?: string;
+  };
+}
+
 const client = generateClient<Schema>();
 
-function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
+function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUser | undefined }) {
   const [lots, setLots] = useState<TickerLot[]>([]);
   const [summaries, setSummaries] = useState<TickerSummary[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
@@ -35,18 +41,18 @@ function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
 
     // Subscribe to real-time updates
     const subscription = client.models.TickerLot.observeQuery().subscribe({
-      next: ({ items }: any) => {
-        const tickerLots: TickerLot[] = items.map((item: any) => ({
+      next: ({ items }) => {
+        const tickerLots: TickerLot[] = items.map((item) => ({
           id: item.id,
           ticker: item.ticker,
           shares: item.shares,
           costPerShare: item.costPerShare,
           purchaseDate: item.purchaseDate,
-          notes: item.notes || '',
-          totalCost: item.totalCost || item.shares * item.costPerShare,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          owner: item.owner,
+          notes: item.notes ?? '',
+          totalCost: item.totalCost ?? item.shares * item.costPerShare,
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          owner: item.owner ?? undefined,
         }));
         setLots(tickerLots);
         setSummaries(calculateTickerSummaries(tickerLots));
@@ -71,17 +77,17 @@ function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
         console.error('Load errors:', errors);
         setError('Failed to load lots');
       } else {
-        const tickerLots: TickerLot[] = data.map((item: any) => ({
+        const tickerLots: TickerLot[] = data.map((item) => ({
           id: item.id,
           ticker: item.ticker,
           shares: item.shares,
           costPerShare: item.costPerShare,
           purchaseDate: item.purchaseDate,
-          notes: item.notes || '',
-          totalCost: item.totalCost || item.shares * item.costPerShare,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          owner: item.owner,
+          notes: item.notes ?? '',
+          totalCost: item.totalCost ?? item.shares * item.costPerShare,
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          owner: item.owner ?? undefined,
         }));
         setLots(tickerLots);
         setSummaries(calculateTickerSummaries(tickerLots));
