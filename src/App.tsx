@@ -19,10 +19,11 @@ import { calculateTickerSummaries } from './utils/tickerCalculations';
 import TickerSummarySpreadsheet from './components/TickerSummarySpreadsheet';
 import TickerDetailModal from './components/TickerDetailModal';
 import NewTickerModal from './components/NewTickerModal';
+import { Authenticator } from '@aws-amplify/ui-react';
 
 const client = generateClient<Schema>();
 
-export default function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
+function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
   const [lots, setLots] = useState<TickerLot[]>([]);
   const [summaries, setSummaries] = useState<TickerSummary[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
@@ -312,5 +313,17 @@ export default function MainApp({ signOut, user }: { signOut: () => void; user: 
         />
       )}
     </div>
+  );
+}
+
+
+// ============================================
+// Main App with Authenticator
+// ============================================
+export default function App() {
+  return (
+    <Authenticator>
+      {({ signOut, user }) => <MainApp signOut={signOut!} user={user} />}
+    </Authenticator>
   );
 }
