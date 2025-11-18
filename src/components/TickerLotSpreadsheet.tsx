@@ -1,7 +1,7 @@
 // ============================================
 // FILE: src/components/TickerLotSpreadsheet.tsx
 // ============================================
-import React from 'react';
+
 import {
   Edit2,
   Trash2,

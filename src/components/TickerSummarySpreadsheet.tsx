@@ -1,7 +1,7 @@
 // ============================================
 // FILE: src/components/TickerSummarySpreadsheet.tsx
 // ============================================
-import React from 'react';
+
 import {
   Eye,
   TrendingUp,
