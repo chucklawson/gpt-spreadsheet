@@ -7,11 +7,16 @@ specifies that any unauthenticated user can "create", "read", "update",
 and "delete" any "Todo" records.
 =========================================================================*/
 const schema = a.schema({
-  Todo: a
+  TickerLot: a
     .model({
-      content: a.string(),
+      ticker: a.string().required(),
+      shares: a.float().required(),
+      costPerShare: a.float().required(),
+      purchaseDate: a.date().required(),
+      notes: a.string(),
+      totalCost: a.float(),
     })
-    .authorization((allow) => [allow.guest()]),
+    .authorization((allow) => [allow.owner()]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
@@ -19,7 +24,7 @@ export type Schema = ClientSchema<typeof schema>;
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'identityPool',
+    defaultAuthorizationMode: 'userPool',
   },
 });
 

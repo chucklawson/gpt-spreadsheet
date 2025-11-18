@@ -1,35 +1,316 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// ============================================
+// FILE: src/App.tsx
+// ============================================
+import React, { useState, useEffect } from 'react';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '../amplify/data/resource';
+import '@aws-amplify/ui-react/styles.css';
+import {
+  TrendingUp,
+  DollarSign,
+  Package,
+  Hash,
+  LogOut,
+  RefreshCw,
+  Plus
+} from 'lucide-react';
+import type { TickerLot, TickerSummary, LotFormData } from './types';
+import { calculateTickerSummaries } from './utils/tickerCalculations';
+import TickerSummarySpreadsheet from './components/TickerSummarySpreadsheet';
+import TickerDetailModal from './components/TickerDetailModal';
+import NewTickerModal from './components/NewTickerModal';
 
-function App() {
-  const [count, setCount] = useState(0)
+const client = generateClient<Schema>();
+
+export default function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
+  const [lots, setLots] = useState<TickerLot[]>([]);
+  const [summaries, setSummaries] = useState<TickerSummary[]>([]);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadLots();
+
+    // Subscribe to real-time updates
+    const subscription = client.models.TickerLot.observeQuery().subscribe({
+      next: ({ items }: any) => {
+        const tickerLots: TickerLot[] = items.map((item: any) => ({
+          id: item.id,
+          ticker: item.ticker,
+          shares: item.shares,
+          costPerShare: item.costPerShare,
+          purchaseDate: item.purchaseDate,
+          notes: item.notes || '',
+          totalCost: item.totalCost || item.shares * item.costPerShare,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          owner: item.owner,
+        }));
+        setLots(tickerLots);
+        setSummaries(calculateTickerSummaries(tickerLots));
+        setLoading(false);
+      },
+      error: (err: Error) => {
+        console.error('Subscription error:', err);
+        setError('Failed to sync data');
+      },
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadLots = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data, errors } = await client.models.TickerLot.list();
+
+      if (errors) {
+        console.error('Load errors:', errors);
+        setError('Failed to load lots');
+      } else {
+        const tickerLots: TickerLot[] = data.map((item: any) => ({
+          id: item.id,
+          ticker: item.ticker,
+          shares: item.shares,
+          costPerShare: item.costPerShare,
+          purchaseDate: item.purchaseDate,
+          notes: item.notes || '',
+          totalCost: item.totalCost || item.shares * item.costPerShare,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          owner: item.owner,
+        }));
+        setLots(tickerLots);
+        setSummaries(calculateTickerSummaries(tickerLots));
+      }
+    } catch (err) {
+      console.error('Load error:', err);
+      setError('Failed to load lots');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveLot = async (lotData: LotFormData, lotId?: string) => {
+    try {
+      const totalCost = lotData.shares * lotData.costPerShare;
+
+      if (lotId) {
+        await client.models.TickerLot.update({
+          id: lotId,
+          ticker: lotData.ticker,
+          shares: lotData.shares,
+          costPerShare: lotData.costPerShare,
+          purchaseDate: lotData.purchaseDate,
+          notes: lotData.notes,
+          totalCost,
+        });
+      } else {
+        await client.models.TickerLot.create({
+          ticker: lotData.ticker,
+          shares: lotData.shares,
+          costPerShare: lotData.costPerShare,
+          purchaseDate: lotData.purchaseDate,
+          notes: lotData.notes,
+          totalCost,
+        });
+      }
+
+      await loadLots();
+    } catch (err) {
+      console.error('Save error:', err);
+      setError('Failed to save lot');
+      throw err;
+    }
+  };
+
+  const handleDeleteLot = async (id: string) => {
+    try {
+      await client.models.TickerLot.delete({ id });
+      await loadLots();
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError('Failed to delete lot');
+      throw err;
+    }
+  };
+
+  const handleDeleteSelected = async (ids: string[]) => {
+    try {
+      for (const id of ids) {
+        await client.models.TickerLot.delete({ id });
+      }
+      await loadLots();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      setError('Failed to delete selected lots');
+      throw err;
+    }
+  };
+
+  const totalPortfolioValue = summaries.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalShares = summaries.reduce((sum, s) => sum + s.totalShares, 0);
+  const totalLots = lots.length;
+  const totalTickers = summaries.length;
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-6 text-white">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-4xl font-bold flex items-center gap-3">
+                  <TrendingUp size={40} />
+                  Portfolio Lot Manager
+                </h1>
+                <p className="text-blue-100 mt-2 text-lg">
+                  Signed in as: {user?.signInDetails?.loginId}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={loadLots}
+                  className="bg-white bg-opacity-20 text-white px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
+                >
+                  <RefreshCw size={20} />
+                  Refresh
+                </button>
+                <button
+                  onClick={() => setSelectedTicker('NEW')}
+                  className="bg-white text-blue-600 px-6 py-3 rounded-lg font-bold hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg"
+                >
+                  <Plus size={22} />
+                  Add First Lot
+                </button>
+                <button
+                  onClick={signOut}
+                  className="bg-red-500 text-white px-5 py-3 rounded-lg hover:bg-red-600 transition-all flex items-center gap-2 font-semibold"
+                >
+                  <LogOut size={20} />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
 
-export default App
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 m-6">
+              <p className="text-red-700 font-semibold">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 underline text-sm mt-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Portfolio Stats */}
+          <div className="grid grid-cols-4 gap-4 p-6 bg-gradient-to-r from-slate-50 to-blue-50">
+            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-green-200">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 p-4 rounded-lg">
+                  <DollarSign className="text-green-600" size={28} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-bold uppercase">Portfolio Value</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    ${totalPortfolioValue.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-blue-200">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-4 rounded-lg">
+                  <Package className="text-blue-600" size={28} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-bold uppercase">Total Shares</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {totalShares.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-purple-200">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-4 rounded-lg">
+                  <TrendingUp className="text-purple-600" size={28} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-bold uppercase">Tickers</p>
+                  <p className="text-2xl font-bold text-purple-600">{totalTickers}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-orange-200">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-100 p-4 rounded-lg">
+                  <Hash className="text-orange-600" size={28} />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-bold uppercase">Total Lots</p>
+                  <p className="text-2xl font-bold text-orange-600">{totalLots}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <TrendingUp size={28} className="text-blue-600" />
+                Ticker Summary
+              </h2>
+              <p className="text-slate-600">
+                Click on any ticker row to view and manage individual lots
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-20">
+                <RefreshCw size={48} className="mx-auto mb-4 text-blue-600 animate-spin" />
+                <p className="text-lg text-slate-600">Loading portfolio data...</p>
+              </div>
+            ) : (
+              <TickerSummarySpreadsheet
+                summaries={summaries}
+                onViewDetails={(ticker) => setSelectedTicker(ticker)}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {selectedTicker && selectedTicker !== 'NEW' && (
+        <TickerDetailModal
+          ticker={selectedTicker}
+          allLots={lots}
+          onClose={() => setSelectedTicker(null)}
+          onSaveLot={handleSaveLot}
+          onDeleteLot={handleDeleteLot}
+          onDeleteSelected={handleDeleteSelected}
+        />
+      )}
+
+      {/* New Ticker Modal */}
+      {selectedTicker === 'NEW' && (
+        <NewTickerModal
+          onClose={() => setSelectedTicker(null)}
+          onSave={handleSaveLot}
+        />
+      )}
+    </div>
+  );
+}
