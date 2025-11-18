@@ -175,9 +175,9 @@ function MainApp({ signOut, user }: { signOut: () => void; user: any }) {
               <div className="flex gap-3">
                 <button
                   onClick={loadLots}
-                  className="bg-white bg-opacity-20 text-white px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
+                  className="bg-white bg-opacity-20 text-blue-500 px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
                 >
-                  <RefreshCw size={20} />
+                  <RefreshCw size={20} strokeWidth={2.5} />
                   Refresh
                 </button>
                 <button
