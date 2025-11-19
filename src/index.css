@@ -7,3 +7,86 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
+
+/* Custom scrollbar styles for better visibility */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+/* Responsive adjustments for different device capabilities */
+@media (max-height: 600px) {
+    .max-h-\[calc\(100vh-400px\)\] {
+        max-height: calc(100vh - 200px) !important;
+    }
+    .max-h-\[calc\(100vh-500px\)\] {
+        max-height: calc(100vh - 250px) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Adjust padding and spacing for tablets and mobile */
+    .p-6 {
+        padding: 1rem !important;
+    }
+
+    /* Enable horizontal scrolling for stats grid on smaller screens */
+    .grid-cols-4 {
+        display: flex !important;
+        overflow-x: auto !important;
+        gap: 0.75rem !important;
+    }
+
+    .grid-cols-4 > * {
+        flex: 0 0 auto !important;
+        min-width: 200px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small devices */
+    .max-h-\[90vh\] {
+        max-height: 85vh !important;
+    }
+
+    .max-h-\[calc\(100vh-400px\)\] {
+        max-height: calc(100vh - 150px) !important;
+    }
+
+    .max-h-\[calc\(100vh-500px\)\] {
+        max-height: calc(100vh - 200px) !important;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    /* Make scrollbars more visible on touch devices */
+    ::-webkit-scrollbar-thumb {
+        background: #64748b;
+    }
+}

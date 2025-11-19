@@ -134,7 +134,7 @@ export default function TickerLotSpreadsheet({
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-lg">
+      <div className="overflow-auto max-h-[calc(100vh-500px)] rounded-xl border border-slate-200 shadow-lg">
         <table className="w-full">
           <thead className="bg-gradient-to-r from-slate-100 to-slate-200 border-b-2 border-slate-300">
           <tr>

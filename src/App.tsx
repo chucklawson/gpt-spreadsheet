@@ -163,9 +163,9 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
   const totalTickers = summaries.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div className="h-full max-w-7xl mx-auto flex flex-col">
+        <div className="bg-white rounded-2xl shadow-2xl flex flex-col h-full overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 p-6 text-white">
             <div className="flex justify-between items-center">
@@ -273,7 +273,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           </div>
 
           {/* Main Content */}
-          <div className="p-6">
+          <div className="p-6 flex-1 overflow-y-auto overflow-x-auto">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <TrendingUp size={28} className="text-blue-600" />
