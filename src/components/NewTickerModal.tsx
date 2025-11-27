@@ -2,27 +2,35 @@
 // New Ticker Modal Component
 // ============================================
 import { useState } from 'react';
-import type { LotFormData } from '../types';
+import type { LotFormData, Portfolio } from '../types';
 import { Plus } from 'lucide-react';
 
 export default function NewTickerModal({
                           onClose,
                           onSave,
+                          portfolios,
                         }: {
   onClose: () => void;
   onSave: (lotData: LotFormData) => Promise<void>;
+  portfolios: Portfolio[];
 }) {
   const [formData, setFormData] = useState<LotFormData>({
     ticker: '',
     shares: 0,
     costPerShare: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
+    portfolio: portfolios[0]?.name || '',
     notes: '',
   });
 
   const handleSave = async () => {
     if (!formData.ticker || formData.shares <= 0 || formData.costPerShare <= 0) {
       alert('Please fill in all required fields with valid values');
+      return;
+    }
+
+    if (!formData.portfolio) {
+      alert('Please select a portfolio');
       return;
     }
 
@@ -64,6 +72,39 @@ export default function NewTickerModal({
                 placeholder="AAPL"
                 autoFocus
               />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-bold text-slate-700 mb-3">
+                Portfolio *
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {portfolios.map((portfolio) => (
+                  <label
+                    key={portfolio.id}
+                    className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                      formData.portfolio === portfolio.name
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="portfolio"
+                      value={portfolio.name}
+                      checked={formData.portfolio === portfolio.name}
+                      onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
+                      className="w-5 h-5 text-blue-600"
+                    />
+                    <div className="flex-1">
+                      <span className="font-semibold text-slate-800">{portfolio.name}</span>
+                      {portfolio.description && (
+                        <p className="text-xs text-slate-600">{portfolio.description}</p>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div>

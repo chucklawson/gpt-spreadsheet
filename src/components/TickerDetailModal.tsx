@@ -12,13 +12,14 @@ import {
   Package,
   BarChart3
 } from 'lucide-react';
-import type { TickerLot, LotFormData } from '../types';
+import type { TickerLot, LotFormData, Portfolio } from '../types';
 import { getLotsForTicker } from '../utils/tickerCalculations';
 import TickerLotSpreadsheet from './TickerLotSpreadsheet';
 
 interface Props {
   ticker: string;
   allLots: TickerLot[];
+  portfolios: Portfolio[];
   onClose: () => void;
   onSaveLot: (lotData: LotFormData, lotId?: string) => Promise<void>;
   onDeleteLot: (id: string) => Promise<void>;
@@ -28,6 +29,7 @@ interface Props {
 export default function TickerDetailModal({
                                             ticker,
                                             allLots,
+                                            portfolios,
                                             onClose,
                                             onSaveLot,
                                             onDeleteLot,
@@ -42,6 +44,7 @@ export default function TickerDetailModal({
     shares: 0,
     costPerShare: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
+    portfolio: portfolios[0]?.name || '',
     notes: '',
   });
 
@@ -61,6 +64,7 @@ export default function TickerDetailModal({
       shares: lot.shares,
       costPerShare: lot.costPerShare,
       purchaseDate: lot.purchaseDate,
+      portfolio: lot.portfolio,
       notes: lot.notes || '',
     });
     setIsFormVisible(true);
@@ -73,6 +77,7 @@ export default function TickerDetailModal({
       shares: 0,
       costPerShare: 0,
       purchaseDate: new Date().toISOString().split('T')[0],
+      portfolio: portfolios[0]?.name || '',
       notes: '',
     });
     setIsFormVisible(true);
@@ -81,6 +86,11 @@ export default function TickerDetailModal({
   const handleSave = async () => {
     if (!formData.ticker || formData.shares <= 0 || formData.costPerShare <= 0) {
       alert('Please fill in all required fields with valid values');
+      return;
+    }
+
+    if (!formData.portfolio) {
+      alert('Please select a portfolio');
       return;
     }
 
@@ -234,6 +244,39 @@ export default function TickerDetailModal({
                     disabled
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg bg-slate-100 text-slate-600 font-bold text-lg"
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-3">
+                    Portfolio *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {portfolios.map((portfolio) => (
+                      <label
+                        key={portfolio.id}
+                        className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                          formData.portfolio === portfolio.name
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="portfolio"
+                          value={portfolio.name}
+                          checked={formData.portfolio === portfolio.name}
+                          onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
+                          className="w-5 h-5 text-blue-600"
+                        />
+                        <div className="flex-1">
+                          <span className="font-semibold text-slate-800">{portfolio.name}</span>
+                          {portfolio.description && (
+                            <p className="text-xs text-slate-600">{portfolio.description}</p>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div>

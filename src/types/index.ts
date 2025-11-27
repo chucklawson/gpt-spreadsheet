@@ -1,12 +1,22 @@
 // ============================================
 // FILE: src/types/index.ts
 // ============================================
+export interface Portfolio {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  owner?: string;
+}
+
 export interface TickerLot {
   id: string;
   ticker: string;
   shares: number;
   costPerShare: number;
   purchaseDate: string;
+  portfolio: string;
   notes?: string;
   totalCost: number;
   createdAt?: string;
@@ -29,5 +39,6 @@ export interface LotFormData {
   shares: number;
   costPerShare: number;
   purchaseDate: string;
+  portfolio: string;
   notes: string;
 }

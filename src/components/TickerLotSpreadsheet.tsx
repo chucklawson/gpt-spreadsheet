@@ -13,7 +13,8 @@ import {
   Settings,
   EyeOff,
   ChevronDown,
-  FileText
+  FileText,
+  Briefcase
 } from 'lucide-react';
 import type { TickerLot } from '../types';
 import ColumnCustomization, { type ColumnConfig } from './ColumnCustomization';
@@ -30,6 +31,7 @@ interface Props {
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'checkbox', label: 'Select', required: true, visible: true },
   { id: 'ticker', label: 'Ticker', icon: TrendingUp, visible: true },
+  { id: 'portfolio', label: 'Portfolio', icon: Briefcase, visible: true },
   { id: 'shares', label: 'Shares', icon: Package, visible: true },
   { id: 'costPerShare', label: 'Cost/Share', icon: DollarSign, visible: true },
   { id: 'totalCost', label: 'Total Cost', icon: DollarSign, visible: true },
@@ -76,6 +78,13 @@ export default function TickerLotSpreadsheet({
         );
       case 'ticker':
         return <span className="font-bold text-blue-600 text-lg">{lot.ticker}</span>;
+      case 'portfolio':
+        return (
+          <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
+            <Briefcase size={14} />
+            {lot.portfolio}
+          </span>
+        );
       case 'shares':
         return <span className="text-slate-700 font-semibold">{lot.shares.toLocaleString()}</span>;
       case 'costPerShare':

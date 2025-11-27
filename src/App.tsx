@@ -12,13 +12,15 @@ import {
   Hash,
   LogOut,
   RefreshCw,
-  Plus
+  Plus,
+  Settings
 } from 'lucide-react';
-import type { TickerLot, TickerSummary, LotFormData } from './types';
+import type { TickerLot, TickerSummary, LotFormData, Portfolio } from './types';
 import { calculateTickerSummaries } from './utils/tickerCalculations';
 import TickerSummarySpreadsheet from './components/TickerSummarySpreadsheet';
 import TickerDetailModal from './components/TickerDetailModal';
 import NewTickerModal from './components/NewTickerModal';
+import PortfolioManager from './components/PortfolioManager';
 import { Authenticator } from '@aws-amplify/ui-react';
 
 interface AuthenticatorUser {
@@ -27,33 +29,39 @@ interface AuthenticatorUser {
   };
 }
 
-const client = generateClient<Schema>();
-
 function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUser | undefined }) {
+  const client = generateClient<Schema>();
   const [lots, setLots] = useState<TickerLot[]>([]);
   const [summaries, setSummaries] = useState<TickerSummary[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [showPortfolioManager, setShowPortfolioManager] = useState(false);
 
   useEffect(() => {
+    initializeDefaultPortfolio();
     loadLots();
+    loadPortfolios();
 
     // Subscribe to real-time updates
     const subscription = client.models.TickerLot.observeQuery().subscribe({
       next: ({ items }) => {
-        const tickerLots: TickerLot[] = items.map((item) => ({
-          id: item.id,
-          ticker: item.ticker,
-          shares: item.shares,
-          costPerShare: item.costPerShare,
-          purchaseDate: item.purchaseDate,
-          notes: item.notes ?? '',
-          totalCost: item.totalCost ?? item.shares * item.costPerShare,
-          createdAt: item.createdAt ?? undefined,
-          updatedAt: item.updatedAt ?? undefined,
-          owner: item.owner ?? undefined,
-        }));
+        const tickerLots: TickerLot[] = items
+          .filter((item) => item !== null)
+          .map((item) => ({
+            id: item.id,
+            ticker: item.ticker,
+            shares: item.shares,
+            costPerShare: item.costPerShare,
+            purchaseDate: item.purchaseDate,
+            portfolio: item.portfolio ?? 'Default',
+            notes: item.notes ?? '',
+            totalCost: item.totalCost ?? item.shares * item.costPerShare,
+            createdAt: item.createdAt ?? undefined,
+            updatedAt: item.updatedAt ?? undefined,
+            owner: item.owner ?? undefined,
+          }));
         setLots(tickerLots);
         setSummaries(calculateTickerSummaries(tickerLots));
         setLoading(false);
@@ -64,8 +72,75 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
       },
     });
 
-    return () => subscription.unsubscribe();
+    // Portfolio subscription
+    const portfolioSub = client.models.Portfolio.observeQuery().subscribe({
+      next: ({ items }) => {
+        const portfolioList: Portfolio[] = items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description ?? '',
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          owner: item.owner ?? undefined,
+        }));
+        setPortfolios(portfolioList);
+      },
+      error: (err: Error) => console.error('Portfolio subscription error:', err),
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      portfolioSub.unsubscribe();
+    };
   }, []);
+
+  const initializeDefaultPortfolio = async () => {
+    try {
+      const { data } = await client.models.Portfolio.list();
+      const defaultExists = data.some(p => p && p.name === 'Default');
+
+      if (!defaultExists) {
+        await client.models.Portfolio.create({
+          name: 'Default',
+          description: 'Default portfolio for existing lots',
+        });
+      }
+
+      // Migrate existing lots without portfolio
+      const { data: lots } = await client.models.TickerLot.list();
+      for (const lot of lots) {
+        if (lot && !lot.portfolio) {
+          await client.models.TickerLot.update({
+            id: lot.id,
+            portfolio: 'Default',
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Default portfolio initialization error:', err);
+    }
+  };
+
+  const loadPortfolios = async () => {
+    try {
+      const { data, errors } = await client.models.Portfolio.list();
+      if (errors) {
+        console.error('Portfolio load errors:', errors);
+      } else {
+        const portfolioList: Portfolio[] = data.map((item) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description ?? '',
+          createdAt: item.createdAt ?? undefined,
+          updatedAt: item.updatedAt ?? undefined,
+          owner: item.owner ?? undefined,
+        }));
+        setPortfolios(portfolioList);
+      }
+    } catch (err) {
+      console.error('Portfolio load error:', err);
+    }
+  };
 
   const loadLots = async () => {
     try {
@@ -77,18 +152,21 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
         console.error('Load errors:', errors);
         setError('Failed to load lots');
       } else {
-        const tickerLots: TickerLot[] = data.map((item) => ({
-          id: item.id,
-          ticker: item.ticker,
-          shares: item.shares,
-          costPerShare: item.costPerShare,
-          purchaseDate: item.purchaseDate,
-          notes: item.notes ?? '',
-          totalCost: item.totalCost ?? item.shares * item.costPerShare,
-          createdAt: item.createdAt ?? undefined,
-          updatedAt: item.updatedAt ?? undefined,
-          owner: item.owner ?? undefined,
-        }));
+        const tickerLots: TickerLot[] = data
+          .filter((item) => item !== null)
+          .map((item) => ({
+            id: item.id,
+            ticker: item.ticker,
+            shares: item.shares,
+            costPerShare: item.costPerShare,
+            purchaseDate: item.purchaseDate,
+            portfolio: item.portfolio ?? 'Default',
+            notes: item.notes ?? '',
+            totalCost: item.totalCost ?? item.shares * item.costPerShare,
+            createdAt: item.createdAt ?? undefined,
+            updatedAt: item.updatedAt ?? undefined,
+            owner: item.owner ?? undefined,
+          }));
         setLots(tickerLots);
         setSummaries(calculateTickerSummaries(tickerLots));
       }
@@ -111,6 +189,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           shares: lotData.shares,
           costPerShare: lotData.costPerShare,
           purchaseDate: lotData.purchaseDate,
+          portfolio: lotData.portfolio,
           notes: lotData.notes,
           totalCost,
         });
@@ -120,6 +199,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           shares: lotData.shares,
           costPerShare: lotData.costPerShare,
           purchaseDate: lotData.purchaseDate,
+          portfolio: lotData.portfolio,
           notes: lotData.notes,
           totalCost,
         });
@@ -179,6 +259,13 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
                 </p>
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPortfolioManager(true)}
+                  className="bg-white bg-opacity-20 text-purple-200 px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
+                >
+                  <Settings size={20} />
+                  Manage Portfolios
+                </button>
                 <button
                   onClick={loadLots}
                   className="bg-white bg-opacity-20 text-blue-500 px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
@@ -304,6 +391,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
         <TickerDetailModal
           ticker={selectedTicker}
           allLots={lots}
+          portfolios={portfolios}
           onClose={() => setSelectedTicker(null)}
           onSaveLot={handleSaveLot}
           onDeleteLot={handleDeleteLot}
@@ -314,8 +402,17 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
       {/* New Ticker Modal */}
       {selectedTicker === 'NEW' && (
         <NewTickerModal
+          portfolios={portfolios}
           onClose={() => setSelectedTicker(null)}
           onSave={handleSaveLot}
+        />
+      )}
+
+      {/* Portfolio Manager Modal */}
+      {showPortfolioManager && (
+        <PortfolioManager
+          portfolios={portfolios}
+          onClose={() => setShowPortfolioManager(false)}
         />
       )}
     </div>
