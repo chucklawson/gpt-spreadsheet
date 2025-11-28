@@ -3,7 +3,7 @@
 // ============================================
 import { useState } from 'react';
 import type { Schema } from '../../amplify/data/resource';
-import { X, Plus, Trash2, Briefcase } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Briefcase } from 'lucide-react';
 import type { Portfolio } from '../types';
 import { generateClient } from 'aws-amplify/data';
 
@@ -55,17 +55,30 @@ export default function PortfolioManager({ portfolios, onClose }: Props) {
     try {
       // Get count of lots in this portfolio
       const { data: lots } = await client.models.TickerLot.list();
-      const lotCount = lots.filter(lot => lot.portfolio === portfolioName).length;
+      const lotsInPortfolio = lots.filter(lot =>
+        lot.portfolios && lot.portfolios.includes(portfolioName)
+      );
+      const lotCount = lotsInPortfolio.length;
 
       const confirmMsg = lotCount > 0
-        ? `Delete portfolio "${portfolioName}" and all ${lotCount} lots in it?`
+        ? `Portfolio "${portfolioName}" is used by ${lotCount} lots. Delete it anyway? (Lots will remain in their other portfolios)`
         : `Delete portfolio "${portfolioName}"?`;
 
       if (!confirm(confirmMsg)) return;
 
-      // Delete all lots in this portfolio first
-      for (const lot of lots.filter(l => l.portfolio === portfolioName)) {
-        await client.models.TickerLot.delete({ id: lot.id });
+      // Remove this portfolio from all lots that have it
+      for (const lot of lotsInPortfolio) {
+        const updatedPortfolios = lot.portfolios.filter(p => p !== portfolioName);
+
+        // If lot would have no portfolios, assign to Default
+        if (updatedPortfolios.length === 0) {
+          updatedPortfolios.push('Default');
+        }
+
+        await client.models.TickerLot.update({
+          id: lot.id,
+          portfolios: updatedPortfolios,
+        });
       }
 
       // Then delete the portfolio
@@ -87,9 +100,9 @@ export default function PortfolioManager({ portfolios, onClose }: Props) {
             </h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-all"
+              className="p-3 hover:bg-white hover:bg-opacity-20 rounded-full transition-all"
             >
-              <X size={24} />
+              <ArrowLeft size={24} />
             </button>
           </div>
         </div>

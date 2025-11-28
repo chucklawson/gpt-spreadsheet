@@ -36,6 +36,8 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'costPerShare', label: 'Cost/Share', icon: DollarSign, visible: true },
   { id: 'totalCost', label: 'Total Cost', icon: DollarSign, visible: true },
   { id: 'purchaseDate', label: 'Purchase Date', icon: Calendar, visible: true },
+  { id: 'calculatePL', label: 'Calc P/L', visible: false },
+  { id: 'baseYield', label: 'Base Yield', visible: false },
   { id: 'notes', label: 'Notes', icon: FileText, visible: true },
   { id: 'actions', label: 'Actions', required: true, visible: true },
 ];
@@ -79,11 +81,22 @@ export default function TickerLotSpreadsheet({
       case 'ticker':
         return <span className="font-bold text-blue-600 text-lg">{lot.ticker}</span>;
       case 'portfolio':
+        const portfolioCount = lot.portfolios.length;
+        const portfolioList = lot.portfolios.join(', ');
+
         return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
-            <Briefcase size={14} />
-            {lot.portfolio}
-          </span>
+          <div className="group relative">
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold cursor-help">
+              <Briefcase size={14} />
+              {portfolioCount} {portfolioCount === 1 ? 'Portfolio' : 'Portfolios'}
+            </span>
+
+            {/* Tooltip */}
+            <div className="invisible group-hover:visible absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg whitespace-nowrap">
+              {portfolioList}
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+            </div>
+          </div>
         );
       case 'shares':
         return <span className="text-slate-700 font-semibold">{lot.shares.toLocaleString()}</span>;
@@ -99,6 +112,22 @@ export default function TickerLotSpreadsheet({
               month: 'short',
               day: 'numeric'
             })}
+          </span>
+        );
+      case 'calculatePL':
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+            lot.calculateAccumulatedProfitLoss
+              ? 'bg-green-100 text-green-700'
+              : 'bg-slate-100 text-slate-700'
+          }`}>
+            {lot.calculateAccumulatedProfitLoss ? 'Yes' : 'No'}
+          </span>
+        );
+      case 'baseYield':
+        return (
+          <span className="text-slate-700 font-mono">
+            {lot.baseYield.toFixed(2)}%
           </span>
         );
       case 'notes':

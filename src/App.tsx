@@ -10,7 +10,7 @@ import {
   DollarSign,
   Package,
   Hash,
-  LogOut,
+  Power,
   RefreshCw,
   Plus,
   Settings
@@ -55,7 +55,9 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             shares: item.shares,
             costPerShare: item.costPerShare,
             purchaseDate: item.purchaseDate,
-            portfolio: item.portfolio ?? 'Default',
+            portfolios: item.portfolios ?? ['Default'],
+            calculateAccumulatedProfitLoss: item.calculateAccumulatedProfitLoss ?? true,
+            baseYield: item.baseYield ?? 0,
             notes: item.notes ?? '',
             totalCost: item.totalCost ?? item.shares * item.costPerShare,
             createdAt: item.createdAt ?? undefined,
@@ -106,14 +108,25 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
         });
       }
 
-      // Migrate existing lots without portfolio
+      // Migrate existing lots to portfolios array format
       const { data: lots } = await client.models.TickerLot.list();
       for (const lot of lots) {
-        if (lot && !lot.portfolio) {
-          await client.models.TickerLot.update({
-            id: lot.id,
-            portfolio: 'Default',
-          });
+        if (lot) {
+          // Case 1: Lot has no portfolios field (very old data)
+          if (!lot.portfolios && !(lot as any).portfolio) {
+            await client.models.TickerLot.update({
+              id: lot.id,
+              portfolios: ['Default'],
+            });
+          }
+          // Case 2: Lot has old 'portfolio' string field (needs migration)
+          else if ((lot as any).portfolio && !lot.portfolios) {
+            await client.models.TickerLot.update({
+              id: lot.id,
+              portfolios: [(lot as any).portfolio],
+            });
+          }
+          // Case 3: Lot already has portfolios array (no action needed)
         }
       }
     } catch (err) {
@@ -160,7 +173,9 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             shares: item.shares,
             costPerShare: item.costPerShare,
             purchaseDate: item.purchaseDate,
-            portfolio: item.portfolio ?? 'Default',
+            portfolios: item.portfolios ?? ['Default'],
+            calculateAccumulatedProfitLoss: item.calculateAccumulatedProfitLoss ?? true,
+            baseYield: item.baseYield ?? 0,
             notes: item.notes ?? '',
             totalCost: item.totalCost ?? item.shares * item.costPerShare,
             createdAt: item.createdAt ?? undefined,
@@ -182,24 +197,37 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     try {
       const totalCost = lotData.shares * lotData.costPerShare;
 
+      // Get base yield from existing lots of this ticker (or use default)
+      const existingLotsOfTicker = lots.filter(lot => lot.ticker === lotData.ticker);
+      const baseYield = existingLotsOfTicker.length > 0
+        ? existingLotsOfTicker[0].baseYield ?? 0
+        : 0;
+
       if (lotId) {
+        // When updating, preserve existing base yield
+        const existingLot = lots.find(lot => lot.id === lotId);
         await client.models.TickerLot.update({
           id: lotId,
           ticker: lotData.ticker,
           shares: lotData.shares,
           costPerShare: lotData.costPerShare,
           purchaseDate: lotData.purchaseDate,
-          portfolio: lotData.portfolio,
+          portfolios: lotData.portfolios,
+          calculateAccumulatedProfitLoss: lotData.calculateAccumulatedProfitLoss,
+          baseYield: existingLot?.baseYield ?? 0,
           notes: lotData.notes,
           totalCost,
         });
       } else {
+        // When creating, use base yield from other lots of same ticker
         await client.models.TickerLot.create({
           ticker: lotData.ticker,
           shares: lotData.shares,
           costPerShare: lotData.costPerShare,
           purchaseDate: lotData.purchaseDate,
-          portfolio: lotData.portfolio,
+          portfolios: lotData.portfolios,
+          calculateAccumulatedProfitLoss: lotData.calculateAccumulatedProfitLoss,
+          baseYield: baseYield,
           notes: lotData.notes,
           totalCost,
         });
@@ -261,7 +289,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPortfolioManager(true)}
-                  className="bg-white bg-opacity-20 text-purple-200 px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
+                  className="bg-white bg-opacity-20 text-blue-500 px-5 py-3 rounded-lg hover:bg-opacity-30 transition-all flex items-center gap-2 font-semibold"
                 >
                   <Settings size={20} />
                   Manage Portfolios
@@ -284,7 +312,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
                   onClick={signOut}
                   className="bg-red-500 text-white px-5 py-3 rounded-lg hover:bg-red-600 transition-all flex items-center gap-2 font-semibold"
                 >
-                  <LogOut size={20} />
+                  <Power size={20} />
                   Sign Out
                 </button>
               </div>
@@ -305,7 +333,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           )}
 
           {/* Portfolio Stats */}
-          <div className="grid grid-cols-4 gap-4 p-6 bg-gradient-to-r from-slate-50 to-blue-50">
+          <div className="grid grid-cols-2 gap-4 p-6 bg-gradient-to-r from-slate-50 to-blue-50">
             <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-green-200">
               <div className="flex items-center gap-3">
                 <div className="bg-green-100 p-4 rounded-lg">
@@ -320,20 +348,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-blue-200">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-4 rounded-lg">
-                  <Package className="text-blue-600" size={28} />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600 font-bold uppercase">Total Shares</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {totalShares.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </div>
-
             <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-purple-200">
               <div className="flex items-center gap-3">
                 <div className="bg-purple-100 p-4 rounded-lg">
@@ -342,18 +356,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
                 <div>
                   <p className="text-sm text-slate-600 font-bold uppercase">Tickers</p>
                   <p className="text-2xl font-bold text-purple-600">{totalTickers}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-lg border-2 border-orange-200">
-              <div className="flex items-center gap-3">
-                <div className="bg-orange-100 p-4 rounded-lg">
-                  <Hash className="text-orange-600" size={28} />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600 font-bold uppercase">Total Lots</p>
-                  <p className="text-2xl font-bold text-orange-600">{totalLots}</p>
                 </div>
               </div>
             </div>

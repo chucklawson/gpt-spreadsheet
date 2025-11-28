@@ -16,7 +16,9 @@ export interface TickerLot {
   shares: number;
   costPerShare: number;
   purchaseDate: string;
-  portfolio: string;
+  portfolios: string[];
+  calculateAccumulatedProfitLoss: boolean;
+  baseYield: number;
   notes?: string;
   totalCost: number;
   createdAt?: string;
@@ -32,6 +34,7 @@ export interface TickerSummary {
   lotCount: number;
   earliestPurchase: string;
   latestPurchase: string;
+  portfolios: string[];
 }
 
 export interface LotFormData {
@@ -39,6 +42,7 @@ export interface LotFormData {
   shares: number;
   costPerShare: number;
   purchaseDate: string;
-  portfolio: string;
+  portfolios: string[];
+  calculateAccumulatedProfitLoss: boolean;
   notes: string;
 }

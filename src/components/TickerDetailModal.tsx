@@ -3,15 +3,18 @@
 // ============================================
 import { useState, useEffect } from 'react';
 import {
-  X,
+  ArrowLeft,
   Plus,
   Save,
   TrendingUp,
   Trash2,
   DollarSign,
   Package,
-  BarChart3
+  BarChart3,
+  Settings
 } from 'lucide-react';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '../../amplify/data/resource';
 import type { TickerLot, LotFormData, Portfolio } from '../types';
 import { getLotsForTicker } from '../utils/tickerCalculations';
 import TickerLotSpreadsheet from './TickerLotSpreadsheet';
@@ -44,13 +47,26 @@ export default function TickerDetailModal({
     shares: 0,
     costPerShare: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
-    portfolio: portfolios[0]?.name || '',
+    portfolios: portfolios.length > 0 ? [portfolios[0].name] : [],
+    calculateAccumulatedProfitLoss: true,
     notes: '',
+  });
+
+  // Ticker-level settings (applied to all lots of this ticker)
+  const [tickerSettings, setTickerSettings] = useState({
+    baseYield: 0,
   });
 
   useEffect(() => {
     const tickerLots = getLotsForTicker(allLots, ticker);
     setLots(tickerLots);
+
+    // Initialize ticker settings from first lot (they should all be the same)
+    if (tickerLots.length > 0) {
+      setTickerSettings({
+        baseYield: tickerLots[0].baseYield ?? 0,
+      });
+    }
   }, [allLots, ticker]);
 
   const totalShares = lots.reduce((sum, lot) => sum + lot.shares, 0);
@@ -64,7 +80,8 @@ export default function TickerDetailModal({
       shares: lot.shares,
       costPerShare: lot.costPerShare,
       purchaseDate: lot.purchaseDate,
-      portfolio: lot.portfolio,
+      portfolios: lot.portfolios,
+      calculateAccumulatedProfitLoss: lot.calculateAccumulatedProfitLoss ?? true,
       notes: lot.notes || '',
     });
     setIsFormVisible(true);
@@ -77,7 +94,8 @@ export default function TickerDetailModal({
       shares: 0,
       costPerShare: 0,
       purchaseDate: new Date().toISOString().split('T')[0],
-      portfolio: portfolios[0]?.name || '',
+      portfolios: portfolios.length > 0 ? [portfolios[0].name] : [],
+      calculateAccumulatedProfitLoss: true,
       notes: '',
     });
     setIsFormVisible(true);
@@ -89,14 +107,38 @@ export default function TickerDetailModal({
       return;
     }
 
-    if (!formData.portfolio) {
-      alert('Please select a portfolio');
+    if (formData.portfolios.length === 0) {
+      alert('Please select at least one portfolio');
       return;
     }
 
     await onSaveLot(formData, editingLot?.id);
     setIsFormVisible(false);
     setEditingLot(null);
+  };
+
+  const handleUpdateTickerSettings = async () => {
+    try {
+      const client = generateClient<Schema>();
+      const newBaseYield = tickerSettings.baseYield;
+
+      // Update all lots of this ticker with the new base yield
+      const updatePromises = lots.map(lot =>
+        client.models.TickerLot.update({
+          id: lot.id,
+          baseYield: newBaseYield,
+        })
+      );
+
+      await Promise.all(updatePromises);
+
+      // The updates will trigger the subscription in App.tsx which will update allLots
+      // The useEffect will then update the ticker settings state
+      alert(`Updated base yield to ${newBaseYield.toFixed(2)}% for all ${lots.length} lot(s) of ${ticker}`);
+    } catch (err) {
+      console.error('Error updating ticker settings:', err);
+      alert('Failed to update ticker settings');
+    }
   };
 
   const handleToggleRow = (id: string) => {
@@ -142,9 +184,9 @@ export default function TickerDetailModal({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-all"
+              className="p-3 hover:bg-white hover:bg-opacity-20 rounded-full transition-all"
             >
-              <X size={28} />
+              <ArrowLeft size={28} />
             </button>
           </div>
         </div>
@@ -200,6 +242,47 @@ export default function TickerDetailModal({
           </div>
         </div>
 
+        {/* Ticker Settings */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 border-b border-orange-200">
+          <div className="flex items-center gap-3 mb-4">
+            <Settings className="text-orange-600" size={24} />
+            <h3 className="text-lg font-bold text-slate-800">Ticker Settings (All Lots)</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-6 items-end">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Base Yield
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tickerSettings.baseYield}
+                  onChange={(e) => setTickerSettings({ ...tickerSettings, baseYield: parseFloat(e.target.value) || 0 })}
+                  className="w-full pr-8 pl-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                  placeholder="5.25"
+                />
+                <span className="absolute right-4 top-3 text-slate-500 text-lg font-bold">%</span>
+              </div>
+            </div>
+
+            <div>
+              <button
+                onClick={handleUpdateTickerSettings}
+                disabled={lots.length === 0}
+                className="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={20} />
+                Update All {lots.length} Lot{lots.length !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-600 mt-3">
+            Base Yield applies to all lots of {ticker}. Changes will update all {lots.length} lot{lots.length !== 1 ? 's' : ''} when you click Update.
+          </p>
+        </div>
+
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Action Bar */}
@@ -248,35 +331,47 @@ export default function TickerDetailModal({
 
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-3">
-                    Portfolio *
+                    Portfolios * (Select one or more)
                   </label>
                   <div className="grid grid-cols-2 gap-3">
-                    {portfolios.map((portfolio) => (
-                      <label
-                        key={portfolio.id}
-                        className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                          formData.portfolio === portfolio.name
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="portfolio"
-                          value={portfolio.name}
-                          checked={formData.portfolio === portfolio.name}
-                          onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
-                          className="w-5 h-5 text-blue-600"
-                        />
-                        <div className="flex-1">
-                          <span className="font-semibold text-slate-800">{portfolio.name}</span>
-                          {portfolio.description && (
-                            <p className="text-xs text-slate-600">{portfolio.description}</p>
-                          )}
-                        </div>
-                      </label>
-                    ))}
+                    {portfolios.map((portfolio) => {
+                      const isChecked = formData.portfolios.includes(portfolio.name);
+
+                      return (
+                        <label
+                          key={portfolio.id}
+                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                            isChecked
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const newPortfolios = e.target.checked
+                                ? [...formData.portfolios, portfolio.name]
+                                : formData.portfolios.filter(p => p !== portfolio.name);
+                              setFormData({ ...formData, portfolios: newPortfolios });
+                            }}
+                            className="w-5 h-5 text-blue-600 rounded"
+                          />
+                          <div className="flex-1">
+                            <span className="font-semibold text-slate-800">{portfolio.name}</span>
+                            {portfolio.description && (
+                              <p className="text-xs text-slate-600">{portfolio.description}</p>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
+                  {formData.portfolios.length > 0 && (
+                    <p className="text-xs text-slate-600 mt-2">
+                      Selected: {formData.portfolios.join(', ')}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -322,6 +417,34 @@ export default function TickerDetailModal({
                     onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Calculate Accumulated P/L *
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="lotCalculateAccumulatedProfitLoss"
+                      checked={formData.calculateAccumulatedProfitLoss === true}
+                      onChange={() => setFormData({ ...formData, calculateAccumulatedProfitLoss: true })}
+                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-slate-700 font-semibold">Yes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="lotCalculateAccumulatedProfitLoss"
+                      checked={formData.calculateAccumulatedProfitLoss === false}
+                      onChange={() => setFormData({ ...formData, calculateAccumulatedProfitLoss: false })}
+                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-slate-700 font-semibold">No</span>
+                  </label>
                 </div>
               </div>
 

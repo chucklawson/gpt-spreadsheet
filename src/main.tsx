@@ -9,7 +9,7 @@ import '@aws-amplify/ui-react/styles.css';
 import outputs from "../amplify_outputs.json";
 import { Amplify } from 'aws-amplify';
 
-Amplify.configure(outputs);
+Amplify.configure(outputs, { ssr: false });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

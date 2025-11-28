@@ -19,7 +19,7 @@ export default function NewTickerModal({
     shares: 0,
     costPerShare: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
-    portfolio: portfolios[0]?.name || '',
+    portfolios: portfolios.length > 0 ? [portfolios[0].name] : [],
     notes: '',
   });
 
@@ -29,8 +29,8 @@ export default function NewTickerModal({
       return;
     }
 
-    if (!formData.portfolio) {
-      alert('Please select a portfolio');
+    if (formData.portfolios.length === 0) {
+      alert('Please select at least one portfolio');
       return;
     }
 
@@ -76,35 +76,47 @@ export default function NewTickerModal({
 
             <div className="col-span-2">
               <label className="block text-sm font-bold text-slate-700 mb-3">
-                Portfolio *
+                Portfolios * (Select one or more)
               </label>
               <div className="grid grid-cols-2 gap-3">
-                {portfolios.map((portfolio) => (
-                  <label
-                    key={portfolio.id}
-                    className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                      formData.portfolio === portfolio.name
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="portfolio"
-                      value={portfolio.name}
-                      checked={formData.portfolio === portfolio.name}
-                      onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
-                      className="w-5 h-5 text-blue-600"
-                    />
-                    <div className="flex-1">
-                      <span className="font-semibold text-slate-800">{portfolio.name}</span>
-                      {portfolio.description && (
-                        <p className="text-xs text-slate-600">{portfolio.description}</p>
-                      )}
-                    </div>
-                  </label>
-                ))}
+                {portfolios.map((portfolio) => {
+                  const isChecked = formData.portfolios.includes(portfolio.name);
+
+                  return (
+                    <label
+                      key={portfolio.id}
+                      className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                        isChecked
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const newPortfolios = e.target.checked
+                            ? [...formData.portfolios, portfolio.name]
+                            : formData.portfolios.filter(p => p !== portfolio.name);
+                          setFormData({ ...formData, portfolios: newPortfolios });
+                        }}
+                        className="w-5 h-5 text-blue-600 rounded"
+                      />
+                      <div className="flex-1">
+                        <span className="font-semibold text-slate-800">{portfolio.name}</span>
+                        {portfolio.description && (
+                          <p className="text-xs text-slate-600">{portfolio.description}</p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
+              {formData.portfolios.length > 0 && (
+                <p className="text-xs text-slate-600 mt-2">
+                  Selected: {formData.portfolios.join(', ')}
+                </p>
+              )}
             </div>
 
             <div>

@@ -20,7 +20,9 @@ const schema = a.schema({
       shares: a.float().required(),
       costPerShare: a.float().required(),
       purchaseDate: a.date().required(),
-      portfolio: a.string(),
+      portfolios: a.string().array().required(),
+      calculateAccumulatedProfitLoss: a.boolean(),
+      baseYield: a.float(),
       notes: a.string(),
       totalCost: a.float(),
     })

@@ -14,6 +14,12 @@ export function calculateTickerSummaries(lots: TickerLot[]): TickerSummary[] {
     const totalCost = tickerLots.reduce((sum, lot) => sum + lot.totalCost, 0);
     const dates = tickerLots.map(lot => lot.purchaseDate).sort();
 
+    // Aggregate all unique portfolios across all lots for this ticker
+    const allPortfolios = new Set<string>();
+    tickerLots.forEach(lot => {
+      lot.portfolios.forEach(portfolio => allPortfolios.add(portfolio));
+    });
+
     return {
       ticker,
       totalShares,
@@ -22,6 +28,7 @@ export function calculateTickerSummaries(lots: TickerLot[]): TickerSummary[] {
       lotCount: tickerLots.length,
       earliestPurchase: dates[0],
       latestPurchase: dates[dates.length - 1],
+      portfolios: Array.from(allPortfolios).sort(),
     };
   }).sort((a, b) => b.totalCost - a.totalCost);
 }
