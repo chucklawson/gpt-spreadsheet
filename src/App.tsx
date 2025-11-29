@@ -8,8 +8,6 @@ import '@aws-amplify/ui-react/styles.css';
 import {
   TrendingUp,
   DollarSign,
-  Package,
-  Hash,
   Power,
   RefreshCw,
   Plus,
@@ -55,7 +53,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             shares: item.shares,
             costPerShare: item.costPerShare,
             purchaseDate: item.purchaseDate,
-            portfolios: item.portfolios ?? ['Default'],
+            portfolios: (item.portfolios ?? ['Default']).filter((p): p is string => p !== null),
             calculateAccumulatedProfitLoss: item.calculateAccumulatedProfitLoss ?? true,
             baseYield: item.baseYield ?? 0,
             notes: item.notes ?? '',
@@ -173,7 +171,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             shares: item.shares,
             costPerShare: item.costPerShare,
             purchaseDate: item.purchaseDate,
-            portfolios: item.portfolios ?? ['Default'],
+            portfolios: (item.portfolios ?? ['Default']).filter((p): p is string => p !== null),
             calculateAccumulatedProfitLoss: item.calculateAccumulatedProfitLoss ?? true,
             baseYield: item.baseYield ?? 0,
             notes: item.notes ?? '',
@@ -266,8 +264,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
   };
 
   const totalPortfolioValue = summaries.reduce((sum, s) => sum + s.totalCost, 0);
-  const totalShares = summaries.reduce((sum, s) => sum + s.totalShares, 0);
-  const totalLots = lots.length;
   const totalTickers = summaries.length;
 
   return (

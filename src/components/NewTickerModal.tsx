@@ -20,6 +20,7 @@ export default function NewTickerModal({
     costPerShare: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
     portfolios: portfolios.length > 0 ? [portfolios[0].name] : [],
+    calculateAccumulatedProfitLoss: true,
     notes: '',
   });
 
