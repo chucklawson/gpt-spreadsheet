@@ -27,6 +27,13 @@ interface AuthenticatorUser {
   };
 }
 
+// Type for old data schema with single portfolio field
+interface LegacyLot {
+  id: string;
+  portfolio?: string;
+  portfolios?: string[];
+}
+
 function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUser | undefined }) {
   const client = generateClient<Schema>();
   const [lots, setLots] = useState<TickerLot[]>([]);
@@ -136,18 +143,19 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
       const { data: lots } = await client.models.TickerLot.list();
       for (const lot of lots) {
         if (lot) {
+          const legacyLot = lot as unknown as LegacyLot;
           // Case 1: Lot has no portfolios field (very old data)
-          if (!lot.portfolios && !(lot as any).portfolio) {
+          if (!lot.portfolios && !legacyLot.portfolio) {
             await client.models.TickerLot.update({
               id: lot.id,
               portfolios: ['Default'],
             });
           }
           // Case 2: Lot has old 'portfolio' string field (needs migration)
-          else if ((lot as any).portfolio && !lot.portfolios) {
+          else if (legacyLot.portfolio && !lot.portfolios) {
             await client.models.TickerLot.update({
               id: lot.id,
-              portfolios: [(lot as any).portfolio],
+              portfolios: [legacyLot.portfolio],
             });
           }
           // Case 3: Lot already has portfolios array (no action needed)
