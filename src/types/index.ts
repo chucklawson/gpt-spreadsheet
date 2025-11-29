@@ -10,6 +10,16 @@ export interface Portfolio {
   owner?: string;
 }
 
+export interface Ticker {
+  id: string;
+  symbol: string;
+  companyName?: string;
+  baseYield: number;
+  createdAt?: string;
+  updatedAt?: string;
+  owner?: string;
+}
+
 export interface TickerLot {
   id: string;
   ticker: string;
@@ -28,6 +38,8 @@ export interface TickerLot {
 
 export interface TickerSummary {
   ticker: string;
+  companyName?: string;
+  baseYield: number;
   totalShares: number;
   totalCost: number;
   averageCostPerShare: number;

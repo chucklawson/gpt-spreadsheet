@@ -14,6 +14,14 @@ const schema = a.schema({
     })
     .authorization((allow) => [allow.owner()]),
 
+  Ticker: a
+    .model({
+      symbol: a.string().required(),
+      companyName: a.string(),
+      baseYield: a.float(),
+    })
+    .authorization((allow) => [allow.owner()]),
+
   TickerLot: a
     .model({
       ticker: a.string().required(),

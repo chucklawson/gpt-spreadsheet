@@ -13,7 +13,7 @@ import {
   Plus,
   Settings
 } from 'lucide-react';
-import type { TickerLot, TickerSummary, LotFormData, Portfolio } from './types';
+import type { TickerLot, TickerSummary, LotFormData, Portfolio, Ticker } from './types';
 import { calculateTickerSummaries } from './utils/tickerCalculations';
 import TickerSummarySpreadsheet from './components/TickerSummarySpreadsheet';
 import TickerDetailModal from './components/TickerDetailModal';
@@ -30,6 +30,7 @@ interface AuthenticatorUser {
 function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUser | undefined }) {
   const client = generateClient<Schema>();
   const [lots, setLots] = useState<TickerLot[]>([]);
+  const [tickers, setTickers] = useState<Ticker[]>([]);
   const [summaries, setSummaries] = useState<TickerSummary[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     initializeDefaultPortfolio();
     loadLots();
     loadPortfolios();
+    loadTickers();
 
     // Subscribe to real-time updates
     const subscription = client.models.TickerLot.observeQuery().subscribe({
@@ -63,7 +65,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             owner: item.owner ?? undefined,
           }));
         setLots(tickerLots);
-        setSummaries(calculateTickerSummaries(tickerLots));
         setLoading(false);
       },
       error: (err: Error) => {
@@ -88,11 +89,36 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
       error: (err: Error) => console.error('Portfolio subscription error:', err),
     });
 
+    // Ticker subscription
+    const tickerSub = client.models.Ticker.observeQuery().subscribe({
+      next: ({ items }) => {
+        const tickerList: Ticker[] = items
+          .filter(item => item !== null)
+          .map((item) => ({
+            id: item.id,
+            symbol: item.symbol,
+            companyName: item.companyName ?? '',
+            baseYield: item.baseYield ?? 0,
+            createdAt: item.createdAt ?? undefined,
+            updatedAt: item.updatedAt ?? undefined,
+            owner: item.owner ?? undefined,
+          }));
+        setTickers(tickerList);
+      },
+      error: (err: Error) => console.error('Ticker subscription error:', err),
+    });
+
     return () => {
       subscription.unsubscribe();
       portfolioSub.unsubscribe();
+      tickerSub.unsubscribe();
     };
   }, []);
+
+  // Recalculate summaries whenever lots or tickers change
+  useEffect(() => {
+    setSummaries(calculateTickerSummaries(lots, tickers));
+  }, [lots, tickers]);
 
   const initializeDefaultPortfolio = async () => {
     try {
@@ -153,6 +179,30 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     }
   };
 
+  const loadTickers = async () => {
+    try {
+      const { data, errors } = await client.models.Ticker.list();
+      if (errors) {
+        console.error('Ticker load errors:', errors);
+      } else {
+        const tickerList: Ticker[] = data
+          .filter(item => item !== null)
+          .map((item) => ({
+            id: item.id,
+            symbol: item.symbol,
+            companyName: item.companyName ?? '',
+            baseYield: item.baseYield ?? 0,
+            createdAt: item.createdAt ?? undefined,
+            updatedAt: item.updatedAt ?? undefined,
+            owner: item.owner ?? undefined,
+          }));
+        setTickers(tickerList);
+      }
+    } catch (err) {
+      console.error('Ticker load error:', err);
+    }
+  };
+
   const loadLots = async () => {
     try {
       setLoading(true);
@@ -181,7 +231,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
             owner: item.owner ?? undefined,
           }));
         setLots(tickerLots);
-        setSummaries(calculateTickerSummaries(tickerLots));
       }
     } catch (err) {
       console.error('Load error:', err);
@@ -195,15 +244,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     try {
       const totalCost = lotData.shares * lotData.costPerShare;
 
-      // Get base yield from existing lots of this ticker (or use default)
-      const existingLotsOfTicker = lots.filter(lot => lot.ticker === lotData.ticker);
-      const baseYield = existingLotsOfTicker.length > 0
-        ? existingLotsOfTicker[0].baseYield ?? 0
-        : 0;
-
       if (lotId) {
-        // When updating, preserve existing base yield
-        const existingLot = lots.find(lot => lot.id === lotId);
         await client.models.TickerLot.update({
           id: lotId,
           ticker: lotData.ticker,
@@ -212,12 +253,10 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           purchaseDate: lotData.purchaseDate,
           portfolios: lotData.portfolios,
           calculateAccumulatedProfitLoss: lotData.calculateAccumulatedProfitLoss,
-          baseYield: existingLot?.baseYield ?? 0,
           notes: lotData.notes,
           totalCost,
         });
       } else {
-        // When creating, use base yield from other lots of same ticker
         await client.models.TickerLot.create({
           ticker: lotData.ticker,
           shares: lotData.shares,
@@ -225,7 +264,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           purchaseDate: lotData.purchaseDate,
           portfolios: lotData.portfolios,
           calculateAccumulatedProfitLoss: lotData.calculateAccumulatedProfitLoss,
-          baseYield: baseYield,
           notes: lotData.notes,
           totalCost,
         });
@@ -263,6 +301,98 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     }
   };
 
+  const handleUpdateTicker = async (ticker: Ticker) => {
+    try {
+      // Check if ticker already exists
+      const { data: existing } = await client.models.Ticker.list({
+        filter: { symbol: { eq: ticker.symbol } }
+      });
+
+      if (existing && existing.length > 0) {
+        // Update existing ticker
+        await client.models.Ticker.update({
+          id: existing[0].id,
+          companyName: ticker.companyName,
+          baseYield: ticker.baseYield,
+        });
+      } else {
+        // Create new ticker
+        await client.models.Ticker.create({
+          symbol: ticker.symbol,
+          companyName: ticker.companyName ?? '',
+          baseYield: ticker.baseYield ?? 0,
+        });
+      }
+
+      await loadTickers();
+    } catch (err) {
+      console.error('Error updating ticker:', err);
+      setError('Failed to update ticker');
+      throw err;
+    }
+  };
+
+  const runTickerMigration = async () => {
+    if (!confirm('This will create Ticker records from your existing lots. Continue?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('Starting Ticker migration...');
+
+      const { data: allLots } = await client.models.TickerLot.list();
+
+      // Group by ticker, find earliest lot for each
+      const tickerMap = new Map<string, { symbol: string; baseYield: number; date: string }>();
+
+      for (const lot of allLots) {
+        if (!lot) continue;
+        const existing = tickerMap.get(lot.ticker);
+        if (!existing || lot.purchaseDate < existing.date) {
+          tickerMap.set(lot.ticker, {
+            symbol: lot.ticker,
+            baseYield: lot.baseYield ?? 0,
+            date: lot.purchaseDate,
+          });
+        }
+      }
+
+      // Create Ticker records
+      let created = 0;
+      let skipped = 0;
+
+      for (const tickerData of tickerMap.values()) {
+        const { data: existing } = await client.models.Ticker.list({
+          filter: { symbol: { eq: tickerData.symbol } }
+        });
+
+        if (!existing || existing.length === 0) {
+          await client.models.Ticker.create({
+            symbol: tickerData.symbol,
+            baseYield: tickerData.baseYield,
+            companyName: '',
+          });
+          console.log(`✓ Created Ticker: ${tickerData.symbol} (yield: ${tickerData.baseYield}%)`);
+          created++;
+        } else {
+          console.log(`- Skipped ${tickerData.symbol} (already exists)`);
+          skipped++;
+        }
+      }
+
+      await loadTickers();
+      setLoading(false);
+
+      alert(`Migration complete!\nCreated: ${created} ticker records\nSkipped: ${skipped} (already existed)`);
+    } catch (err) {
+      console.error('Migration error:', err);
+      setError('Migration failed');
+      setLoading(false);
+      alert('Migration failed. Check console for details.');
+    }
+  };
+
   const totalPortfolioValue = summaries.reduce((sum, s) => sum + s.totalCost, 0);
   const totalTickers = summaries.length;
 
@@ -289,6 +419,14 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
                 >
                   <Settings size={20} />
                   Manage Portfolios
+                </button>
+                <button
+                  onClick={runTickerMigration}
+                  className="bg-yellow-500 text-white px-5 py-3 rounded-lg hover:bg-yellow-600 transition-all flex items-center gap-2 font-semibold shadow-lg"
+                  title="One-time migration: Create Ticker records from existing lots"
+                >
+                  <RefreshCw size={20} />
+                  Run Migration
                 </button>
                 <button
                   onClick={loadLots}
@@ -378,6 +516,7 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
               <TickerSummarySpreadsheet
                 summaries={summaries}
                 onViewDetails={(ticker) => setSelectedTicker(ticker)}
+                onUpdateTicker={handleUpdateTicker}
               />
             )}
           </div>
@@ -390,10 +529,12 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
           ticker={selectedTicker}
           allLots={lots}
           portfolios={portfolios}
+          tickers={tickers}
           onClose={() => setSelectedTicker(null)}
           onSaveLot={handleSaveLot}
           onDeleteLot={handleDeleteLot}
           onDeleteSelected={handleDeleteSelected}
+          onUpdateTicker={handleUpdateTicker}
         />
       )}
 

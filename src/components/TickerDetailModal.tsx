@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
-import type { TickerLot, LotFormData, Portfolio } from '../types';
+import type { TickerLot, LotFormData, Portfolio, Ticker } from '../types';
 import { getLotsForTicker } from '../utils/tickerCalculations';
 import TickerLotSpreadsheet from './TickerLotSpreadsheet';
 
@@ -23,20 +23,24 @@ interface Props {
   ticker: string;
   allLots: TickerLot[];
   portfolios: Portfolio[];
+  tickers: Ticker[];
   onClose: () => void;
   onSaveLot: (lotData: LotFormData, lotId?: string) => Promise<void>;
   onDeleteLot: (id: string) => Promise<void>;
   onDeleteSelected: (ids: string[]) => Promise<void>;
+  onUpdateTicker: (ticker: Ticker) => Promise<void>;
 }
 
 export default function TickerDetailModal({
                                             ticker,
                                             allLots,
                                             portfolios,
+                                            tickers,
                                             onClose,
                                             onSaveLot,
                                             onDeleteLot,
                                             onDeleteSelected,
+                                            onUpdateTicker,
                                           }: Props) {
   const [lots, setLots] = useState<TickerLot[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -54,6 +58,7 @@ export default function TickerDetailModal({
 
   // Ticker-level settings (applied to all lots of this ticker)
   const [tickerSettings, setTickerSettings] = useState({
+    companyName: '',
     baseYield: 0,
   });
 
@@ -61,13 +66,20 @@ export default function TickerDetailModal({
     const tickerLots = getLotsForTicker(allLots, ticker);
     setLots(tickerLots);
 
-    // Initialize ticker settings from first lot (they should all be the same)
-    if (tickerLots.length > 0) {
+    // Initialize ticker settings from Ticker model
+    const tickerData = tickers.find(t => t.symbol === ticker);
+    if (tickerData) {
       setTickerSettings({
-        baseYield: tickerLots[0].baseYield ?? 0,
+        companyName: tickerData.companyName ?? '',
+        baseYield: tickerData.baseYield ?? 0,
+      });
+    } else {
+      setTickerSettings({
+        companyName: '',
+        baseYield: 0,
       });
     }
-  }, [allLots, ticker]);
+  }, [allLots, ticker, tickers]);
 
   const totalShares = lots.reduce((sum, lot) => sum + lot.shares, 0);
   const totalCost = lots.reduce((sum, lot) => sum + lot.totalCost, 0);
@@ -119,22 +131,16 @@ export default function TickerDetailModal({
 
   const handleUpdateTickerSettings = async () => {
     try {
-      const client = generateClient<Schema>();
-      const newBaseYield = tickerSettings.baseYield;
+      const updatedTicker: Ticker = {
+        id: '', // Will be set by handleUpdateTicker
+        symbol: ticker,
+        companyName: tickerSettings.companyName,
+        baseYield: tickerSettings.baseYield,
+      };
 
-      // Update all lots of this ticker with the new base yield
-      const updatePromises = lots.map(lot =>
-        client.models.TickerLot.update({
-          id: lot.id,
-          baseYield: newBaseYield,
-        })
-      );
+      await onUpdateTicker(updatedTicker);
 
-      await Promise.all(updatePromises);
-
-      // The updates will trigger the subscription in App.tsx which will update allLots
-      // The useEffect will then update the ticker settings state
-      alert(`Updated base yield to ${newBaseYield.toFixed(2)}% for all ${lots.length} lot(s) of ${ticker}`);
+      alert(`Updated ticker settings for ${ticker}`);
     } catch (err) {
       console.error('Error updating ticker settings:', err);
       alert('Failed to update ticker settings');
@@ -246,9 +252,26 @@ export default function TickerDetailModal({
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 border-b border-orange-200">
           <div className="flex items-center gap-3 mb-4">
             <Settings className="text-orange-600" size={24} />
-            <h3 className="text-lg font-bold text-slate-800">Ticker Settings (All Lots)</h3>
+            <h3 className="text-lg font-bold text-slate-800">Ticker Settings</h3>
           </div>
-          <div className="grid grid-cols-2 gap-6 items-end">
+
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Company Name
+              </label>
+              <input
+                type="text"
+                value={tickerSettings.companyName}
+                onChange={(e) => setTickerSettings({
+                  ...tickerSettings,
+                  companyName: e.target.value
+                })}
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                placeholder="Apple Inc."
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Base Yield
@@ -259,27 +282,30 @@ export default function TickerDetailModal({
                   min="0"
                   step="0.01"
                   value={tickerSettings.baseYield}
-                  onChange={(e) => setTickerSettings({ ...tickerSettings, baseYield: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setTickerSettings({
+                    ...tickerSettings,
+                    baseYield: parseFloat(e.target.value) || 0
+                  })}
                   className="w-full pr-8 pl-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:outline-none"
                   placeholder="5.25"
                 />
                 <span className="absolute right-4 top-3 text-slate-500 text-lg font-bold">%</span>
               </div>
             </div>
-
-            <div>
-              <button
-                onClick={handleUpdateTickerSettings}
-                disabled={lots.length === 0}
-                className="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Save size={20} />
-                Update All {lots.length} Lot{lots.length !== 1 ? 's' : ''}
-              </button>
-            </div>
           </div>
+
+          <div className="mt-4">
+            <button
+              onClick={handleUpdateTickerSettings}
+              className="w-full px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all font-semibold flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Save size={20} />
+              Save Ticker Settings
+            </button>
+          </div>
+
           <p className="text-xs text-slate-600 mt-3">
-            Base Yield applies to all lots of {ticker}. Changes will update all {lots.length} lot{lots.length !== 1 ? 's' : ''} when you click Update.
+            These settings apply to {ticker} across all portfolios and lots.
           </p>
         </div>
 

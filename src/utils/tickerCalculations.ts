@@ -1,6 +1,6 @@
-import type { TickerLot, TickerSummary } from '../types/index';
+import type { TickerLot, TickerSummary, Ticker } from '../types/index';
 
-export function calculateTickerSummaries(lots: TickerLot[]): TickerSummary[] {
+export function calculateTickerSummaries(lots: TickerLot[], tickers: Ticker[] = []): TickerSummary[] {
   const grouped = lots.reduce((acc, lot) => {
     if (!acc[lot.ticker]) {
       acc[lot.ticker] = [];
@@ -20,8 +20,13 @@ export function calculateTickerSummaries(lots: TickerLot[]): TickerSummary[] {
       lot.portfolios.forEach(portfolio => allPortfolios.add(portfolio));
     });
 
+    // Find matching ticker data
+    const tickerData = tickers.find(t => t.symbol === ticker);
+
     return {
       ticker,
+      companyName: tickerData?.companyName ?? '',
+      baseYield: tickerData?.baseYield ?? 0,
       totalShares,
       totalCost,
       averageCostPerShare: totalCost / totalShares,

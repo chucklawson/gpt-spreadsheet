@@ -10,7 +10,10 @@
       "Bash(find:*)",
       "Bash(git -C \"D:\\awsGitRepos\\gpt-spreadsheet\" log --oneline -5)",
       "Bash(npm run dev:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(del nul)"
     ],
     "deny": [],
     "ask": []

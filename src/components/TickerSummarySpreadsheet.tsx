@@ -13,18 +13,23 @@ import {
   Settings,
   EyeOff,
   ChevronDown,
-  Briefcase
+  Briefcase,
+  Building2,
+  Percent
 } from 'lucide-react';
-import type { TickerSummary } from '../types';
+import type { TickerSummary, Ticker } from '../types';
 import ColumnCustomization, { type ColumnConfig } from './ColumnCustomization';
 
 interface Props {
   summaries: TickerSummary[];
   onViewDetails: (ticker: string) => void;
+  onUpdateTicker: (ticker: Ticker) => Promise<void>;
 }
 
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'ticker', label: 'Ticker', icon: TrendingUp, required: true, visible: true },
+  { id: 'companyName', label: 'Company', icon: Building2, visible: true },
+  { id: 'baseYield', label: 'Yield %', icon: Percent, visible: true },
   { id: 'portfolios', label: 'Portfolios', icon: Briefcase, visible: true },
   { id: 'totalShares', label: 'Total Shares', icon: Package, visible: true },
   { id: 'totalCost', label: 'Total Cost', icon: DollarSign, visible: true },
@@ -37,10 +42,16 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 export default function TickerSummarySpreadsheet({
                                                    summaries,
                                                    onViewDetails,
+                                                   onUpdateTicker,
                                                  }: Props) {
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [showCustomization, setShowCustomization] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{
+    ticker: string;
+    field: 'companyName' | 'baseYield';
+  } | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
 
   const visibleColumns = columns.filter(col => col.visible);
   const visibleColSpan = visibleColumns.length;
@@ -54,10 +65,109 @@ export default function TickerSummarySpreadsheet({
     setDropdownOpen(null);
   };
 
+  const handleSaveEdit = async (ticker: string, field: 'companyName' | 'baseYield') => {
+    try {
+      const summary = summaries.find(s => s.ticker === ticker);
+      if (!summary) return;
+
+      const updatedTicker: Ticker = {
+        id: '', // Will be set by handleUpdateTicker
+        symbol: ticker,
+        companyName: field === 'companyName' ? editValue : summary.companyName ?? '',
+        baseYield: field === 'baseYield' ? parseFloat(editValue) || 0 : summary.baseYield,
+      };
+
+      await onUpdateTicker(updatedTicker);
+      setEditingCell(null);
+    } catch (err) {
+      console.error('Error saving ticker edit:', err);
+      alert('Failed to save changes');
+    }
+  };
+
   const renderCellContent = (colId: string, summary: TickerSummary) => {
     switch (colId) {
       case 'ticker':
         return <span className="font-bold text-blue-600 text-xl">{summary.ticker}</span>;
+
+      case 'companyName':
+        const isEditingCompany = editingCell?.ticker === summary.ticker &&
+                                 editingCell?.field === 'companyName';
+
+        if (isEditingCompany) {
+          return (
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={() => handleSaveEdit(summary.ticker, 'companyName')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveEdit(summary.ticker, 'companyName');
+                if (e.key === 'Escape') setEditingCell(null);
+              }}
+              autoFocus
+              className="w-full px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        }
+
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingCell({ ticker: summary.ticker, field: 'companyName' });
+              setEditValue(summary.companyName ?? '');
+            }}
+            className="cursor-text hover:bg-blue-50 px-2 py-1 rounded min-h-[28px] transition-colors"
+            title="Click to edit company name"
+          >
+            {summary.companyName || (
+              <span className="text-slate-400 italic text-sm">Add name...</span>
+            )}
+          </div>
+        );
+
+      case 'baseYield':
+        const isEditingYield = editingCell?.ticker === summary.ticker &&
+                               editingCell?.field === 'baseYield';
+
+        if (isEditingYield) {
+          return (
+            <div className="relative">
+              <input
+                type="number"
+                step="0.01"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => handleSaveEdit(summary.ticker, 'baseYield')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit(summary.ticker, 'baseYield');
+                  if (e.key === 'Escape') setEditingCell(null);
+                }}
+                autoFocus
+                className="w-20 px-2 py-1 border-2 border-blue-500 rounded focus:outline-none pr-6"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <span className="absolute right-2 top-1 text-slate-500">%</span>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingCell({ ticker: summary.ticker, field: 'baseYield' });
+              setEditValue(summary.baseYield.toString());
+            }}
+            className="cursor-text hover:bg-blue-50 px-2 py-1 rounded font-mono transition-colors"
+            title="Click to edit base yield"
+          >
+            {summary.baseYield.toFixed(2)}%
+          </div>
+        );
+
       case 'portfolios':
         const portfolioCount = summary.portfolios.length;
         const portfolioList = summary.portfolios.join(', ');
