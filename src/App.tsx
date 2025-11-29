@@ -332,67 +332,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
     }
   };
 
-  const runTickerMigration = async () => {
-    if (!confirm('This will create Ticker records from your existing lots. Continue?')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      console.log('Starting Ticker migration...');
-
-      const { data: allLots } = await client.models.TickerLot.list();
-
-      // Group by ticker, find earliest lot for each
-      const tickerMap = new Map<string, { symbol: string; baseYield: number; date: string }>();
-
-      for (const lot of allLots) {
-        if (!lot) continue;
-        const existing = tickerMap.get(lot.ticker);
-        if (!existing || lot.purchaseDate < existing.date) {
-          tickerMap.set(lot.ticker, {
-            symbol: lot.ticker,
-            baseYield: lot.baseYield ?? 0,
-            date: lot.purchaseDate,
-          });
-        }
-      }
-
-      // Create Ticker records
-      let created = 0;
-      let skipped = 0;
-
-      for (const tickerData of tickerMap.values()) {
-        const { data: existing } = await client.models.Ticker.list({
-          filter: { symbol: { eq: tickerData.symbol } }
-        });
-
-        if (!existing || existing.length === 0) {
-          await client.models.Ticker.create({
-            symbol: tickerData.symbol,
-            baseYield: tickerData.baseYield,
-            companyName: '',
-          });
-          console.log(`✓ Created Ticker: ${tickerData.symbol} (yield: ${tickerData.baseYield}%)`);
-          created++;
-        } else {
-          console.log(`- Skipped ${tickerData.symbol} (already exists)`);
-          skipped++;
-        }
-      }
-
-      await loadTickers();
-      setLoading(false);
-
-      alert(`Migration complete!\nCreated: ${created} ticker records\nSkipped: ${skipped} (already existed)`);
-    } catch (err) {
-      console.error('Migration error:', err);
-      setError('Migration failed');
-      setLoading(false);
-      alert('Migration failed. Check console for details.');
-    }
-  };
-
   const totalPortfolioValue = summaries.reduce((sum, s) => sum + s.totalCost, 0);
   const totalTickers = summaries.length;
 
@@ -419,14 +358,6 @@ function MainApp({ signOut, user }: { signOut: () => void; user: AuthenticatorUs
                 >
                   <Settings size={20} />
                   Manage Portfolios
-                </button>
-                <button
-                  onClick={runTickerMigration}
-                  className="bg-yellow-500 text-white px-5 py-3 rounded-lg hover:bg-yellow-600 transition-all flex items-center gap-2 font-semibold shadow-lg"
-                  title="One-time migration: Create Ticker records from existing lots"
-                >
-                  <RefreshCw size={20} />
-                  Run Migration
                 </button>
                 <button
                   onClick={loadLots}
